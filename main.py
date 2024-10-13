@@ -8,26 +8,33 @@ from utils.log import CustomLogger
 from utils.get_abstract_exist import get_abstract_exist
 from datetime import datetime
 from agents.study import Study
+import pytz
 import ipdb
-# from llmlingua import PromptCompressor
+from concurrent.futures import ProcessPoolExecutor
+from llmlingua import PromptCompressor
 # 示例研究数据
-current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+timezone = pytz.timezone('Asia/Shanghai')
+current_time = datetime.now(timezone).strftime("%Y-%m-%d_%H-%M-%S")
 # 创建日志文件名
 log_filename = f"log_{current_time}.log"
 logger = CustomLogger("log/"+log_filename)
-# compressor = PromptCompressor(
-# model_name="microsoft/llmlingua-2-xlm-roberta-large-meetingbank",
-# use_llmlingua2=True
-# )
 
-def contorl(name,pmid):
-    save_path = os.path.join("data/answer",name,pmid + ".json") 
+compressor = PromptCompressor(
+model_name="microsoft/llmlingua-2-xlm-roberta-large-meetingbank",
+use_llmlingua2=True
+)
+
+def control(name,pmid):
+    save_path = os.path.join("test_data/answer",name,pmid + ".json") 
+    data =None
     if os.path.exists(save_path):
         with open(save_path, "r", encoding="utf-8") as file:
             data = json.load(file)
-            if data["question_list"]["process_pediatrics_incontent"] == False:
+            if data["state"]["finished"] == True:
                 return
-    study_data = Study(pmid,name) 
+            if data["state"]["need_to_fetch_conent"] == True and data["state"]["include_content"] == False:
+                return
+    study_data = Study(pmid,name,compressor =compressor, initial_data = data)
 
     # 尝试获取摘要
     abstract = get_abstract_exist(name,pmid)
@@ -48,53 +55,79 @@ def contorl(name,pmid):
                     study_data.ask_remain_question()
                 else:
                     study_data.data["state"]["need_to_fetch_conent"] = True
+            else:
+                study_data.data["state"]["finished"] = True
                 
         elif result["short_answer"].lower() == "age_not_mentioned":
             if study_data.data["state"]["include_content"] == True:
                 result = study_data.process_pediatrics_incontent()   
                 logger.log_info(f"{name}_{pmid} process_pediatrics_incontent: {result}")
                 study_data.data["state"]["process_pediatrics_incontent"] = True
-                if result["short_answer"] == "yes": 
+                if result["short_answer"].lower() == "yes": 
                     study_data.data["paper_info"]["includes_pediatrics"] = True
                     result = study_data.process_population_effectiveness()
                     logger.log_info(f"{name}_{pmid} process_population_effectiveness: {result}")
                     study_data.data["state"]["process_population_effectiveness"] = True
-                    if result["short_answer"] =="yes":
+                    if result["short_answer"].lower() =="yes":
                         study_data.data["paper_info"]["proves_effective"] = True
                         # continue to ask question remain
                         study_data.ask_remain_question()
+                    else:
+                        study_data.data["state"]["finished"] = True
+                else:
+                    study_data.data["state"]["finished"] = True
             else:
                 study_data.data["state"]["need_to_fetch_conent"] = True
 
+        else:
+            study_data.data["state"]["finished"] = True
         #save the answer to json
-        details = study_data.gather_details()
-        print(details)
         if not os.path.exists(os.path.dirname(save_path)):
             os.makedirs(os.path.dirname(save_path),exist_ok=True)
         study_data.save_to_json(save_path)  # 保存到JSON文件
     else:
         if not os.path.exists(os.path.dirname(save_path)):
             os.makedirs(os.path.dirname(save_path),exist_ok=True)
+        study_data.data["state"]["no_abstract"] = True
         study_data.save_to_json(save_path)  # 保存到JSON文件
-        print("Failed to fetch abstract.")
+        logger.log_info(f"{name}_{pmid} Failed to fetch abstract.")
+
+# if __name__ == "__main__":
+#     with open("data/medicine_with_pmid.jsonl","r",encoding="utf-8") as f:
+#         """
+#         medicine_with_pmid.jsonl:
+#         {"englishname": ["Tobramycin", "dexamethasone"], "data-chunk-ids: "12122630,23122451..."}
+#         ...
+#         """
+#         pool = ProcessPoolExecutor(20)
+#         number_of_pmid = 0
+#         for line in f:
+#             if number_of_pmid< 10000:
+#                 json_obj = json.loads(line.strip())
+#                 name = ""
+#                 for i in range(len(json_obj["englishname"])):
+#                     name =name + json_obj["englishname"][i]+"-"
+#                 name = name[:-1] 
+
+#                 data_chunk_ids = json_obj["data-chunk-ids"]
+#                 for pmid in data_chunk_ids:
+#                     # if pmid !="70630":
+#                     #     continue
+#                     # contorl(name,pmid)
+#                     pool.submit(control,name,pmid)
+#                     number_of_pmid += 1
+#         pool.shutdown(wait=True)
+
 
 if __name__ == "__main__":
-    with open("data/medicine_with_pmid.jsonl","r",encoding="utf-8") as f:
-        """
-        medicine_with_pmid.jsonl:
-        {"englishname": ["Tobramycin", "dexamethasone"], "data-chunk-ids: "12122630,23122451..."}
-        ...
-        """
-        for line in f:
-            json_obj = json.loads(line.strip())
-            name = ""
-            for i in range(len(json_obj["englishname"])):
-                name =name + json_obj["englishname"][i]+"-"
-            name = name[:-1] 
-
-            data_chunk_ids = json_obj["data-chunk-ids"]
-            for pmid in data_chunk_ids:
-                if pmid !="26059517":
-                    continue
-                contorl(name,pmid)
-            
+    pool = ProcessPoolExecutor(10)
+    for root,dirs,files in os.walk("/root/LLM-Medical-Agent/test_data/abstract"):
+        for file in files:
+            if file !="24636877.json":
+                continue
+            file_path = os.path.join(root, file)
+            # 获取文件所在的文件夹名字
+            folder_name = os.path.basename(root)
+            control(folder_name,file[:-5])
+            # pool.submit(control,folder_name,file[:-5])
+    # pool.shutdown(wait=True)

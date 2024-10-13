@@ -12,7 +12,7 @@ logging.basicConfig(filename="relativechunk.log",  # 将日志保存到filename�
                     level=logging.INFO) 
 
 #only llm,return relative chunk
-def find_relative_chunk(paper_name, question, prompt = "Given the question and the document below, does the document provide information that would be useful in answering the question? Please respond with either 'Yes' or 'No' only."):
+def find_relative_chunk(datas, question, prompt = "Given the question and the document below, does the document provide information that would be useful in answering the question? Please respond with either 'Yes' or 'No' only."):
     """
     输入：{
         "abstract":...
@@ -22,17 +22,15 @@ def find_relative_chunk(paper_name, question, prompt = "Given the question and t
     """
 
     try:
-        with open(paper_name, 'r', encoding='utf-8') as f:  
-            relative_chunk = {}
-            datas=loads(f.read())
-            relative_state = gpt_request_demo(datas, question, prompt)
-            for key, value in relative_state.items():
-                if value.lower() == "yes":
-                    relative_chunk[key] = datas[key]
-            return relative_chunk
+        relative_state = gpt_request_demo(datas, question, prompt)
+        relative_chunk = {}
+        for key, value in relative_state.items():
+            if value.lower() == "yes":
+                relative_chunk[key] = datas[key]
+        return relative_chunk
     except Exception as e:
         logging.info(e)
-        return {}
+        return relative_chunk
         
 #
 def question2relative_chunk_1(paper_name, question_list, prompt = "Given the question and the document below, does the document provide information that would be useful in answering the question? Please respond with either 'Yes' or 'No' only."):

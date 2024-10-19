@@ -25,7 +25,7 @@ use_llmlingua2=True
 )
 
 def control(name,pmid):
-    save_path = os.path.join("test_data/answer",name,pmid + ".json") 
+    save_path = os.path.join("data/answer1",name,pmid + ".json") 
     data =None
     if os.path.exists(save_path):
         with open(save_path, "r", encoding="utf-8") as file:
@@ -37,8 +37,8 @@ def control(name,pmid):
     study_data = Study(pmid,name,compressor =compressor, initial_data = data)
 
     # 尝试获取摘要
-    abstract = get_abstract_exist(name,pmid)
-    if study_data.fetch_abstract(abstract):
+    abstract,title,time = get_abstract_exist(name,pmid)
+    if study_data.fetch_abstract(abstract,title,time):
         # 流程控制
         result = study_data.process_pediatrics_inabstract()
         logger.log_info(f"{name}_{pmid} process_pediatrics_inabstract: {result}")
@@ -89,45 +89,45 @@ def control(name,pmid):
         if not os.path.exists(os.path.dirname(save_path)):
             os.makedirs(os.path.dirname(save_path),exist_ok=True)
         study_data.data["state"]["no_abstract"] = True
+        self.data["state"]["need_to_fetch_conent"] = True
         study_data.save_to_json(save_path)  # 保存到JSON文件
         logger.log_info(f"{name}_{pmid} Failed to fetch abstract.")
 
-# if __name__ == "__main__":
-#     with open("data/medicine_with_pmid.jsonl","r",encoding="utf-8") as f:
-#         """
-#         medicine_with_pmid.jsonl:
-#         {"englishname": ["Tobramycin", "dexamethasone"], "data-chunk-ids: "12122630,23122451..."}
-#         ...
-#         """
-#         pool = ProcessPoolExecutor(20)
-#         number_of_pmid = 0
-#         for line in f:
-#             if number_of_pmid< 10000:
-#                 json_obj = json.loads(line.strip())
-#                 name = ""
-#                 for i in range(len(json_obj["englishname"])):
-#                     name =name + json_obj["englishname"][i]+"-"
-#                 name = name[:-1] 
-
-#                 data_chunk_ids = json_obj["data-chunk-ids"]
-#                 for pmid in data_chunk_ids:
-#                     # if pmid !="70630":
-#                     #     continue
-#                     # contorl(name,pmid)
-#                     pool.submit(control,name,pmid)
-#                     number_of_pmid += 1
-#         pool.shutdown(wait=True)
-
-
 if __name__ == "__main__":
-    pool = ProcessPoolExecutor(10)
-    for root,dirs,files in os.walk("/root/LLM-Medical-Agent/test_data/abstract"):
-        for file in files:
-            if file !="24636877.json":
-                continue
-            file_path = os.path.join(root, file)
-            # 获取文件所在的文件夹名字
-            folder_name = os.path.basename(root)
-            control(folder_name,file[:-5])
-            # pool.submit(control,folder_name,file[:-5])
-    # pool.shutdown(wait=True)
+    with open("data/medicine_with_pmid.jsonl","r",encoding="utf-8") as f:
+        """
+        medicine_with_pmid.jsonl:
+        {"englishname": ["Tobramycin", "dexamethasone"], "data-chunk-ids: "12122630,23122451..."}
+        ...
+        """
+        pool = ProcessPoolExecutor(20)
+        number_of_pmid = 0
+        for line in f:
+            json_obj = json.loads(line.strip())
+            name = ""
+            for i in range(len(json_obj["englishname"])):
+                name =name + json_obj["englishname"][i]+"-"
+            name = name[:-1] 
+
+            data_chunk_ids = json_obj["data-chunk-ids"]
+            for pmid in data_chunk_ids:
+                # if pmid !="70630":
+                #     continue
+                # contorl(name,pmid)
+                pool.submit(control,name,pmid)
+                number_of_pmid += 1
+        pool.shutdown(wait=True)
+
+
+# if __name__ == "__main__":
+#     pool = ProcessPoolExecutor(10)
+#     for root,dirs,files in os.walk("/root/LLM-Medical-Agent/test_data/abstract"):
+#         for file in files:
+#             if file !="24636877.json":
+#                 continue
+#             file_path = os.path.join(root, file)
+#             # 获取文件所在的文件夹名字
+#             folder_name = os.path.basename(root)
+#             control(folder_name,file[:-5])
+#             # pool.submit(control,folder_name,file[:-5])
+#     # pool.shutdown(wait=True)

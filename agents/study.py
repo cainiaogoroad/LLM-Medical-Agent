@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import html2text
 import json
 import os
+import html2text
 import tiktoken
 import logging
 
@@ -23,6 +24,9 @@ class Study:
                     "drug_name": drug_name
                 },
                 "paper_info":{
+                "title": "",
+                "year": "",
+                "doi":"",
                 "abstract": "",
                 "content":"",
                 "includes_pediatrics": False,
@@ -60,7 +64,7 @@ class Study:
 
 
 
-    def fetch_abstract(self,abstract=None):
+    def fetch_abstract(self,abstract=None,title=None,year=None):
         if self.data["paper_info"]["abstract"] != "":
             return True
         if abstract!=None:
@@ -70,6 +74,8 @@ class Study:
                 self.data["state"]["need_to_fetch_conent"] = True
                 return False
             self.data["paper_info"]["abstract"] = abstract
+            self.data["paper_info"]["title"] = title
+            self.data["paper_info"]["year"] = year
             self.data["state"]["include_abstract"] = True
             return True
         url = 'https://pubmed.ncbi.nlm.nih.gov/' + self.data["base_info"]["abstract_url"] + "/" 
@@ -79,14 +85,41 @@ class Study:
             # 解析HTML
                 soup = BeautifulSoup(response.text, 'html.parser') 
                 abstract_div = soup.find('div', class_='abstract-content selected', id='eng-abstract')
+                time_span = soup.find('span', class_="cit")
+                title_h1 = soup.find('h1', class_="heading-title")
+                doi_a = soup.find('a', class_="id-link")
+                if time_span is None:
+                    html_time = ""
+                else:
+                    html_time = time_span.get_text()
+                if title_h1 is None:
+                    html_title = ""
+                else:
+                    html_title = title_h1.get_text()
+                if doi_a is None:
+                    html_doi = ""
+                else:
+                    html_doi = doi_a.get_text()
+                time = html2text.html2text(html_time)
+                title = html2text.html2text(html_title)
+                doi = html2text.html2text(html_doi)  
                 if abstract_div is not None:
                     html_abstract = abstract_div.get_text()
                 else:
                     logging.error(f"drug name:{self.data['base_info']['drug_name']}'s paper{self.data['base_info']['abstract_url']} not have abstract")
                     return False
                 markdown = html2text.html2text(html_abstract)  
-                self.data["paper_info"]["abstract"] = markdown
-                self.data["state"]["include_abstract"] = True
+                if len(markdown)<10:
+                    logging.error(f"name:{self.data['base_info']['drug_name']},pmid:{self.data['base_info']['abstract_url']} no abstract")
+                    self.data["state"]["no_abstract"] = True
+                    self.data["state"]["need_to_fetch_conent"] = True
+                else:
+                    self.data["paper_info"]["abstract"] = markdown
+                    self.data["state"]["include_abstract"] = True
+                self.data["paper_info"]["title"] = title
+                self.data["paper_info"]["year"] = time
+                self.data["paper_info"]["doi"] = doi
+                
                 logging.info(f"Abstract: {markdown} have been fetched.")
                 return True
         except requests.RequestException as e:
@@ -234,10 +267,9 @@ class Study:
         "Newborns_isin": "",
         "Infants_isin": "",
         "Children_isin": "",
-        "Adolescents_isin": "",
-        "Adults":""
+        "Adolescents_isin": ""
       }"""
-        question = "What is the age distribution of the people in the study? \nExtract data on the age distribution of the participants.\nIf available, note any provided statistics on average age, range, or age groups.\nSummarize the size of the experimental population.\nUse the age distribution to answer whether the following groups are involved, and return Yes or No in Premature_infants_isin and other similar fields (\npremature baby\nNewborn <28 days\nInfants and toddlers 28 days to 23 months\nChildren 2-11 years old\nAdolescents 12-17 years old\nAdults 18 years and above\n)?"
+        question = "What is the age distribution of the people in the study? \nExtract data on the age distribution of the participants.\nIf available, note any provided statistics on average age, range, or age groups.\nSummarize the size of the experimental population.\nUse the age distribution to answer whether the following groups are involved, and return Yes or No in Premature_infants_isin and other similar fields (\npremature baby\nNewborn <28 days\nInfants and toddlers 28 days to 23 months\nChildren 2-11 years old\nAdolescents 12-17 years old\n)?"
         relative_chunk = find_relative_chunk(self.data["paper_info"]["content"],question)
         contents = self.conmpress_content(relative_chunk,question)
         prompt = template.format(question = question,context = contents,json = js)
@@ -307,8 +339,9 @@ class Study:
 {json}
 """     
         js  ="""{
-            "route_of_administration": "",
-            "reason": ""
+            "reason": "",    
+            "route_of_administration": ""
+            
         }"""
         question = f"What is the route of administration of the target drug {self.data['base_info']['drug_name']}"
         relative_chunk = find_relative_chunk(self.data["paper_info"]["content"],question)

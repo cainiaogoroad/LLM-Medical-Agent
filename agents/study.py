@@ -140,8 +140,8 @@ class Study:
             json_object = self.data["answer"]["process_pediatrics_inabstract"]
             return json_object
         json_object = {"reason": "","short_answer": "[final model answer (e.g. included,excluded,age_not_mentioned]"}
-        prompt = "##prompt:Use the criteria below to inform your decision. If any exclusion criteria are met or not all inclusion criteria are met, exclude the article, lf all inclusion criteria are met, include the article. Please type \"included\"or \"excluded\" to indicate your decision. ##Abstract:{abstract}\n\n##Inclusion criteria:\nDrug Efficacy Study in human\nAt least one pediatric(<18 years) in sample patients.\n\n##Attention:If no age information is mentioned in the abstract,return \"age_not_mentioned\"\n##model generated chain of thought explanation.\nTherefore, the json format answer is \n{json}"
-        prompt = prompt.format(abstract=self.data["paper_info"]["abstract"],json=json_object)
+        prompt = "##prompt:Use the criteria below to inform your decision. If any exclusion criteria are met or not all inclusion criteria are met, exclude the article, lf all inclusion criteria are met, include the article. Please type \"included\"or \"excluded\" to indicate your decision. ##Title:{title}\n##Abstract:{abstract}\n\n##Inclusion criteria:\nDrug Efficacy Study in human\nAt least one pediatric(<18 years) in sample patients.\n\n##Attention:If no age information is mentioned in the abstract,return \"age_not_mentioned\"\n##model generated chain of thought explanation.\nTherefore, the json format answer is \n{json}"
+        prompt = prompt.format(abstract=self.data["paper_info"]["abstract"],title = self.data["paper_info"]["title"],json=json_object)
         prompt_dict = {}
         prompt_dict["prompt"] = prompt
         result = gpt_request_from_relative_chunk(prompt_dict)
@@ -160,8 +160,8 @@ class Study:
             json_object = self.data["answer"]["process_effectiveness"]
             return json_object
         json_object = {"reason": "","short_answer": "[final model answer (e.g. Yes,No,NA,NM)]"}
-        prompt = "##question:Only using the information provided in \"Text for Analysis\", assess whether the target drug {target_drug}, shows significant efficacy or effectiveness (including improvement in survival) in pediatric populations.\nLet's think step by step. Follow these guidelines:\n**Control group: Identify whether this study divided patients into two or more groups receiving different intervention regimens (also known as treatment regimens), and whether this study included a control group or more.\nIs target drug involved: Examine the intervention regimens across all groups in the study, identify which regimens in this study involve the target drug {target_drug}. This includes groups receiving the drug as monotherapy, as part of combination therapy with other medications, or as an active ingredient in a regimen that also includes a placebo.\nEffective: If the text shows that the regimen including {target_drug} has significant efficacy or effectiveness (including improvement in survival or other clinical outcome measures) compared to a control group that does not involving {target_drug} in pediatric patients, state that the regimens including this drug is more effective than other regimens that do not include this drug in this population.\nNA (Not Applicable): If the study is a single-arm study or does not include a control group, or if all intervention regimens include the target drug {target_drug}, respond with \"NA\".\nNM (Not Mentioned): If the text does not mention {target_drug}, or if the drug is not the subject of the study, or if the study is not conducted on pediatric populations, respond with \"NM\".\nPlease return \"Yes\", \"No\", \"NA (Not Applicable)\", or \"NM (Not Mentioned)\", and provide your assessment based on the provided text and explain your reasoning.\n##Text for Analysis:\n{abstract}\n\n##Your Assessment:\nmodel generated chain of thought explanation\nTherefore, the json format answer is \n{json}"
-        prompt = prompt.format(abstract=self.data["paper_info"]["abstract"],json=json_object,target_drug=self.data["base_info"]["drug_name"])
+        prompt = "##question:Only using the information provided in \"Text for Analysis\", assess whether the target drug {target_drug}, shows significant efficacy or effectiveness (including improvement in survival) in pediatric populations.\nLet's think step by step. Follow these guidelines:\n**Control group: Identify whether this study divided patients into two or more groups receiving different intervention regimens (also known as treatment regimens), and whether this study included a control group or more.\nIs target drug involved: Examine the intervention regimens across all groups in the study, identify which regimens in this study involve the target drug {target_drug}. This includes groups receiving the drug as monotherapy, as part of combination therapy with other medications, or as an active ingredient in a regimen that also includes a placebo.\nEffective: If the text shows that the regimen including {target_drug} has significant efficacy or effectiveness (including improvement in survival or other clinical outcome measures) compared to a control group that does not involving {target_drug} in pediatric patients, state that the regimens including this drug is more effective than other regimens that do not include this drug in this population.\nNA (Not Applicable): If the study is a single-arm study or does not include a control group, or if all intervention regimens include the target drug {target_drug}, respond with \"NA\".\nNM (Not Mentioned): If the text does not mention {target_drug}, or if the drug is not the subject of the study, or if the study is not conducted on pediatric populations, respond with \"NM\".\nPlease return \"Yes\", \"No\", \"NA (Not Applicable)\", or \"NM (Not Mentioned)\", and provide your assessment based on the provided text and explain your reasoning.\n##Text for Analysis:\n##Title:{title}\n##Abstract:{abstract}\n\n##Your Assessment:\nmodel generated chain of thought explanation\nTherefore, the json format answer is \n{json}"
+        prompt = prompt.format(abstract=self.data["paper_info"]["abstract"],title = self.data["paper_info"]["title"],json=json_object,target_drug=self.data["base_info"]["drug_name"])
         prompt_dict = {}
         prompt_dict["prompt"] = prompt
         result = gpt_request_from_relative_chunk(prompt_dict)
@@ -209,6 +209,8 @@ class Study:
         if self.data["state"]["include_content"] == False:
             return None
         relative_chunk = find_relative_chunk(self.data["paper_info"]["content"],question)
+        if relative_chunk == None:
+            return None
         contents = self.conmpress_content(relative_chunk,question)
         prompt = "##INSTRUCTION:According to the relative information, is the pediatric (<18 years) population included in this study?your answer must is in [yes,no]\n##Relative information:{context}\n##model generated chain of thought explanation.\nTherefore, the json format answer is json:{json}"
         prompt = prompt.format(context= contents,json=json_object)
@@ -230,8 +232,8 @@ class Study:
             json_object = self.data["answer"]["process_population_effectiveness"]
             return json_object
         json_object = {"reason":"","short_answer":""}
-        prompt = "##question:Only using the information provided in \"Text for Analysis\", assess whether the target drug {target_drug}, shows significant efficacy or effectiveness (including improvement in survival) in populations.\nLet's think step by step. Follow these guidelines:\n**Control group: Identify whether this study divided patients into two or more groups receiving different intervention regimens (also known as treatment regimens), and whether this study included a control group or more.\nIs target drug involved: Examine the intervention regimens across all groups in the study, identify which regimens in this study involve the target drug {target_drug}. This includes groups receiving the drug as monotherapy, as part of combination therapy with other medications, or as an active ingredient in a regimen that also includes a placebo.\nEffective: If the text shows that the regimen including {target_drug} has significant efficacy or effectiveness (including improvement in survival or other clinical outcome measures) compared to a control group that does not involving {target_drug} in  patients, state that the regimens including this drug is more effective than other regimens that do not include this drug in this population.\nNA (Not Applicable): If the study is a single-arm study or does not include a control group, or if all intervention regimens include the target drug {target_drug}, respond with \"NA\".\nNM (Not Mentioned): If the text does not mention {target_drug}, or if the drug is not the subject of the study, or if the study is not conducted on populations, respond with \"NM\".\nPlease return \"Yes\", \"No\", \"NA (Not Applicable)\", or \"NM (Not Mentioned)\", and provide your assessment based on the provided text and explain your reasoning.\n##Text for Analysis:\n{abstract}\n\n##Your Assessment:\nmodel generated chain of thought explanation\nTherefore, the json format answer is \n{json}"
-        prompt = prompt.format(target_drug = self.data["base_info"]["drug_name"],abstract=self.data["paper_info"]["abstract"],json=json_object)
+        prompt = "##question:Only using the information provided in \"Text for Analysis\", assess whether the target drug {target_drug}, shows significant efficacy or effectiveness (including improvement in survival) in populations.\nLet's think step by step. Follow these guidelines:\n**Control group: Identify whether this study divided patients into two or more groups receiving different intervention regimens (also known as treatment regimens), and whether this study included a control group or more.\nIs target drug involved: Examine the intervention regimens across all groups in the study, identify which regimens in this study involve the target drug {target_drug}. This includes groups receiving the drug as monotherapy, as part of combination therapy with other medications, or as an active ingredient in a regimen that also includes a placebo.\nEffective: If the text shows that the regimen including {target_drug} has significant efficacy or effectiveness (including improvement in survival or other clinical outcome measures) compared to a control group that does not involving {target_drug} in  patients, state that the regimens including this drug is more effective than other regimens that do not include this drug in this population.\nNA (Not Applicable): If the study is a single-arm study or does not include a control group, or if all intervention regimens include the target drug {target_drug}, respond with \"NA\".\nNM (Not Mentioned): If the text does not mention {target_drug}, or if the drug is not the subject of the study, or if the study is not conducted on populations, respond with \"NM\".\nPlease return \"Yes\", \"No\", \"NA (Not Applicable)\", or \"NM (Not Mentioned)\", and provide your assessment based on the provided text and explain your reasoning.\n##Text for Analysis:##Title:{title}\n##Abstract:{abstract}\n\n##Your Assessment:\nmodel generated chain of thought explanation\nTherefore, the json format answer is \n{json}"
+        prompt = prompt.format(target_drug = self.data["base_info"]["drug_name"],abstract=self.data["paper_info"]["abstract"],title = self.data["paper_info"]["title"],json=json_object)
         prompt_dict = {}
         prompt_dict["prompt"] = prompt
         result = gpt_request_from_relative_chunk(prompt_dict)
@@ -271,6 +273,8 @@ class Study:
       }"""
         question = "What is the age distribution of the people in the study? \nExtract data on the age distribution of the participants.\nIf available, note any provided statistics on average age, range, or age groups.\nSummarize the size of the experimental population.\nUse the age distribution to answer whether the following groups are involved, and return Yes or No in Premature_infants_isin and other similar fields (\npremature baby\nNewborn <28 days\nInfants and toddlers 28 days to 23 months\nChildren 2-11 years old\nAdolescents 12-17 years old\n)?"
         relative_chunk = find_relative_chunk(self.data["paper_info"]["content"],question)
+        if relative_chunk == None:
+            return None
         contents = self.conmpress_content(relative_chunk,question)
         prompt = template.format(question = question,context = contents,json = js)
         prompt_dict = {}
@@ -300,6 +304,8 @@ class Study:
         prompt = ""
         question = "What the main disease targeted in this study?"
         relative_chunk = find_relative_chunk(self.data["paper_info"]["content"],question)
+        if relative_chunk == None:
+            return None
         contents = self.conmpress_content(relative_chunk,question)
         prompt = template.format(question=question, context=contents, json=js)
         prompt_dict = {}
@@ -345,6 +351,8 @@ class Study:
         }"""
         question = f"What is the route of administration of the target drug {self.data['base_info']['drug_name']}"
         relative_chunk = find_relative_chunk(self.data["paper_info"]["content"],question)
+        if relative_chunk == None:
+            return None
         contents = self.conmpress_content(relative_chunk,question)
         prompt = template.format(question=question, context=contents, json=js)
         prompt_dict = {}
@@ -375,6 +383,8 @@ class Study:
                 "used_cohort_or_follow-up_data": ""
             }"""
         relative_chunk = find_relative_chunk(self.data["paper_info"]["content"],question)
+        if relative_chunk == None:
+            return None
         contents = self.conmpress_content(relative_chunk,question)
         prompt = template.format(question=question, context=contents, json=js)
         prompt_dict = {}

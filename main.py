@@ -30,12 +30,18 @@ def control(name,pmid):
     if os.path.exists(save_path):
         with open(save_path, "r", encoding="utf-8") as file:
             data = json.load(file)
-            if data["state"]["finished"] == True:
-                return
+            if data["state"]["finished"] == True :
+                if data["answer"]["age"]=="" and data["state"]["remain_problem"] ==True:
+                        logger.log_info(f"{name}_{pmid} reprocess")
+                else:
+                    return
             if data["state"]["need_to_fetch_conent"] == True and data["state"]["include_content"] == False:
                 return
+            if data["state"]["remain_problem"] !=True:
+                return
     study_data = Study(pmid,name,compressor =compressor, initial_data = data)
-
+    import ipdb
+    ipdb.set_trace()
     # 尝试获取摘要
     abstract,title,time = get_abstract_exist(name,pmid)
     if study_data.fetch_abstract(abstract,title,time):
@@ -61,6 +67,8 @@ def control(name,pmid):
         elif result["short_answer"].lower() == "age_not_mentioned":
             if study_data.data["state"]["include_content"] == True:
                 result = study_data.process_pediatrics_incontent()   
+                if result ==None:
+                    return
                 logger.log_info(f"{name}_{pmid} process_pediatrics_incontent: {result}")
                 study_data.data["state"]["process_pediatrics_incontent"] = True
                 if result["short_answer"].lower() == "yes": 
@@ -89,19 +97,25 @@ def control(name,pmid):
         if not os.path.exists(os.path.dirname(save_path)):
             os.makedirs(os.path.dirname(save_path),exist_ok=True)
         study_data.data["state"]["no_abstract"] = True
-        self.data["state"]["need_to_fetch_conent"] = True
+        study_data.data["state"]["need_to_fetch_conent"] = True
         study_data.save_to_json(save_path)  # 保存到JSON文件
         logger.log_info(f"{name}_{pmid} Failed to fetch abstract.")
 
 if __name__ == "__main__":
+    path = "/root/LLM-Medical-Agent/data/answer1"
+    md_path = "/root/LLM-Medical-Agent/data/md/mds_all_1"
+    md_exist = []
+    for root, dirs, files in os.walk(md_path):
+        for file in files:
+            if file.endswith(".md"):
+                md_exist.append(file[:-3])
     with open("data/medicine_with_pmid.jsonl","r",encoding="utf-8") as f:
         """
         medicine_with_pmid.jsonl:
         {"englishname": ["Tobramycin", "dexamethasone"], "data-chunk-ids: "12122630,23122451..."}
         ...
         """
-        pool = ProcessPoolExecutor(20)
-        number_of_pmid = 0
+        pool = ProcessPoolExecutor(10)
         for line in f:
             json_obj = json.loads(line.strip())
             name = ""
@@ -110,13 +124,15 @@ if __name__ == "__main__":
             name = name[:-1] 
 
             data_chunk_ids = json_obj["data-chunk-ids"]
+
             for pmid in data_chunk_ids:
-                # if pmid !="70630":
-                #     continue
-                # contorl(name,pmid)
-                pool.submit(control,name,pmid)
-                number_of_pmid += 1
-        pool.shutdown(wait=True)
+                if pmid not in md_exist:
+                    continue
+                control(name,pmid)
+                # pool.submit(control,name,pmid)
+                # logger.log_info(f"{name}_{pmid} :{number_of_pmid}")
+        # pool.shutdown(wait=True)
+
 
 
 # if __name__ == "__main__":

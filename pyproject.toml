@@ -1,0 +1,19 @@
+[project]
+name = "pubmed"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "bs4>=0.0.2",
+    "fake-useragent>=2.2.0",
+    "html2text>=2025.4.15",
+    "ipdb>=0.13.13",
+    "langchain>=0.3.24",
+    "langchain-community>=0.3.23",
+    "openai>=1.76.0",
+    "openpyxl>=3.1.5",
+    "pandas>=2.2.3",
+    "requests>=2.32.3",
+    "xmltodict>=0.14.2",
+]
